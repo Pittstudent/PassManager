@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register Page</title>
+
+    <style>
+
+body {
+            font-family: Arial, sans-serif;
+            background-color: #f4f4f4;
+        }
+        .login-container {
+            width: 300px;
+            margin: 100px auto;
+            padding: 20px;
+            background-color: #fff;
+            border-radius: 5px;
+            box-shadow: 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+        .login-container h2 {
+            text-align: center;
+            margin-bottom: 20px;
+        }
+        .login-container input[type="text"],
+        .login-container input[type="password"] {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border: 1px solid #ccc;
+            border-radius: 3px;
+            box-sizing: border-box;
+        }
+        .login-container input[type="submit"] {
+            width: 100%;
+            padding: 10px;
+            background-color: #790a0a;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 16px;
+        }
+        .login-container input[type="submit"]:hover {
+            background-color: #db2e2e;
+        }
+        .create-account {
+            width: 10%;
+            padding: 10px;
+            background-color: #790a0a;
+            color: #fff;
+            border: none;
+            border-radius: 3px;
+            cursor: pointer;
+            font-size: 16px;
+            text-align: center;
+            margin-left: 45%;
+            margin-top: -50px;
+            text-decoration: none;
+        }
+        .create-account:hover {
+            background-color: #db2e2e;
+        }
+    </style>
+
+</head>
+<body>
+
+    <div class="alert-box">
+        <p class="alert"></p>
+    </div>
+
+    <div class="login-container">
+        <h1 class="heading">Register</h1>
+        <ul>
+            <% if (typeof errors != 'undefined') { %> <% errors.forEach(error => { %>
+            <li><%= error.message %></li>
+            <% }) %> <% } %>
+          </ul>
+          
+        <form action="/users/create_account" method="POST">
+            <div>
+                <input type="text" placeholder="name" id="name" name="name" autocomplete="off" required>
+            </div>
+            <div> 
+                <input type="email" placeholder="email" id="email" name="email" autocomplete="off" class="email" required>
+            </div>
+            <div>
+                <input type="password" placeholder="password" id="password" name="password" autocomplete="off" required> 
+            </div>
+            <div> 
+                <input type="password" placeholder="confirm password" id="password2" name="password2" autocomplete="off" required> 
+            </div>
+            <div>
+                <input type="submit" value="Register" class="submit-btn">
+            </div>
+            <a href="/" class="link">already have an account ? log in here</a>
+        </form>
+    </div>
+    
+</body>
+</html>
