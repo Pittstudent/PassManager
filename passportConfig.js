@@ -1,6 +1,7 @@
 const LocalStrategy = require('passport-local').Strategy;
 const { authenticate } = require('passport');
 const { pool } = require('./dbConfig');
+const { exec } = require('child_process');
 const bcrypt = require('bcrypt');
 
 function initialize (passport) {
@@ -21,12 +22,19 @@ function initialize (passport) {
 
                 if(results.rows.length > 0){
                     const user = results.rows[0];
-
-                    bcrypt.compare(password, user.password, (err, isMatch) => {
-                        if(err){
-                            console.log(err);
+                    console.log("Credentials" + password + " " + user.salt + " " + user.password)
+                    const child = exec(`python3 ./passcheck.py "${password}" "${user.salt}" "${user.password}"`, (error, stdout, stderr) => {
+                        if (error) {
+                            console.error(`Error executing Python script: ${error}`);
+                            res.status(500).send('Error executing Python script');
+                            return;
                         }
-                        if(isMatch){
+                
+                        // Handle output from Python script
+                        const match = 0;
+                        const answ = stdout.trim() // Assuming Python script outputs 'true' if passwords match
+                        console.log(`Python script output: ${answ}`);
+                        if(match){
                             console.log("Password matched");
                             return done(null, user);
                         } else {

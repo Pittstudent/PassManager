@@ -5,7 +5,7 @@ const bcrypt = require("bcrypt");
 const session = require("express-session");
 const flash = require("express-flash");
 const passport = require("passport");
-
+const { exec } = require('child_process');
 
 console.log("Live!")
 
@@ -68,8 +68,9 @@ app.get("/users/logout", (req, res) => {
         res.redirect("/");
     });
 });
-      
 
+
+      
 app.post('/users/create_account', async (req, res) => {
     
     let{name, email, password, password2} = req.body;
@@ -110,45 +111,63 @@ app.post('/users/create_account', async (req, res) => {
         res.render("create_account.ejs", {errors});
     }
     else{
-        let hashedPassword = await bcrypt.hash(password, 10); //hashing password
-        console.log(hashedPassword);
+        // Remove the duplicate declaration of 'salt'
+        let salt = bcrypt.genSaltSync(10); //generate salt
+        let hashedPassword = ''
 
-        pool.query(
-            `SELECT * FROM users 
-            WHERE email = $1`, 
-            [email], 
-            (err, results) => {
-                if (err) {
-                    console.log(err);
-                    res.sendStatus(500);
-                    return;
-                }
-                console.log(results.rows);
-    
-                if(results.rows.length > 0){
-                    errors.push({message: "Email already registered"});
-                    res.render("create_account.ejs", {errors});
-                }
-                else{
-                    pool.query(
-                        `INSERT INTO users (name, email, password)
-                        VALUES ($1, $2, $3)
-                        RETURNING id, password`, 
-                        [name, email, hashedPassword], 
-                        (err, results) => {
-                            if (err) {
-                                console.log(err);
-                                res.sendStatus(500);
-                                return;
-                            }
-                            console.log(results.rows);
-                            req.flash("success_msg", "You are now registered. Please log in");
-                            res.redirect("/");
-                        }
-                    );
-                }
+        const child = exec(`python3 ./crypter.py ${password} ${salt}`, (error, stdout, stderr) => { //send pass to python to encrypt
+            if (error) {
+                console.error(`Error executing Python script: ${error}`);
+                return;
             }
-        );
+            console.log(`Python script output: ${stdout}`);
+            hashedPassword = stdout;
+
+            pool.query(
+                `SELECT * FROM users 
+                WHERE email = $1`, 
+                [email], 
+                (err, results) => {
+                    if (err) {
+                        console.log(err);
+                        res.sendStatus(500);
+                        return;
+                    }
+                    console.log(results.rows);
+        
+                    if(results.rows.length > 0){
+                        errors.push({message: "Email already registered"});
+                        res.render("create_account.ejs", {errors});
+                    }
+                    else{
+                        pool.query(
+                            `INSERT INTO users (name, email, password, salt)
+                            VALUES ($1, $2, $3, $4)
+                            RETURNING id, password, salt`, 
+                            [name, email, hashedPassword, salt], 
+                            (err, results) => {
+                                if (err) {
+                                    console.log(err);
+                                    res.sendStatus(500);
+                                    return;
+                                }
+                                console.log(results.rows);
+                                req.flash("success_msg", "You are now registered. Please log in");
+                                res.redirect("/");
+                            }
+                        );
+                    }
+                }
+            );
+        });
+        
+        // child.on('exit', (code) => {
+        //     console.log(`Python script exited with code ${code}`);
+        // });
+
+        // let hashedPassword = await bcrypt.hash(password, 10); //hashing password //replace with python 
+        // console.log("Salt: " + salt);
+        // console.log(hashedPassword);
     }
 });
 
