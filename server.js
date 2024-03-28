@@ -2,10 +2,18 @@ const express = require('express'); // Import express
 const bodyParser = require('body-parser');
 const app = express();
 const bcrypt = require("bcrypt");
+const session = require("express-session");
+const flash = require("express-flash");
+const passport = require("passport");
 
-console.log("Workin!")
+
+console.log("Live!")
 
 const {pool} = require("./dbConfig");
+
+
+const initializePassport = require("./passportConfig");
+initializePassport(passport);
 
 const port = process.env.PORT || 4000; // Default port
 
@@ -16,10 +24,33 @@ app.use(express.json()); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
 // app.use(express.static('public')); // Serve static files from the 'public' directory
 
+app.use(session({
+    secret: "secret",
+    resave: false,
+    saveUninitialized: false
+}));
+
+
+app.use(passport.initialize());
+app.use(passport.session());
+
+
+app.use(flash());
+
 
 app.get('/', (req, res) => {
     res.render('index.ejs');
 }); // Add closing parenthesis here
+
+app.get("/users/create_account", checkAuthenticated, (req, res) => {
+    res.render("create_account.ejs");});
+
+app.get("/", checkAuthenticated, (req, res) => {
+    res.render("login.ejs");});
+
+app.get("/users/dashboard", checkNotAuthenticated, (req, res) => {
+    res.render("dashboard.ejs", {user: req.user.name});});
+
 
 app.get("/users/create_account", (req, res) => {
     res.render("create_account.ejs");});
@@ -28,7 +59,16 @@ app.get("/users/login", (req, res) => {
     res.render("login.ejs");});
 
 app.get("/users/dashboard", (req, res) => {
-    res.render("dashboard.ejs", {user: "Conor"});});
+    res.render("dashboard.ejs", {user: req.user.name});});
+
+app.get("/users/logout", (req, res) => {
+    req.logout(req.user, err => {
+        if(err) return next(err);
+        req.flash("success_msg", "You have been logged out");
+        res.redirect("/");
+    });
+});
+      
 
 app.post('/users/create_account', async (req, res) => {
     
@@ -72,21 +112,65 @@ app.post('/users/create_account', async (req, res) => {
     else{
         let hashedPassword = await bcrypt.hash(password, 10); //hashing password
         console.log(hashedPassword);
-    }
 
-    pool.query(
-        `SELECT * FROM users WHERE email = $1`, [email], (err, results) => {
-            if(err){
-                throw err;
+        pool.query(
+            `SELECT * FROM users 
+            WHERE email = $1`, 
+            [email], 
+            (err, results) => {
+                if (err) {
+                    console.log(err);
+                    res.sendStatus(500);
+                    return;
+                }
+                console.log(results.rows);
+    
+                if(results.rows.length > 0){
+                    errors.push({message: "Email already registered"});
+                    res.render("create_account.ejs", {errors});
+                }
+                else{
+                    pool.query(
+                        `INSERT INTO users (name, email, password)
+                        VALUES ($1, $2, $3)
+                        RETURNING id, password`, 
+                        [name, email, hashedPassword], 
+                        (err, results) => {
+                            if (err) {
+                                console.log(err);
+                                res.sendStatus(500);
+                                return;
+                            }
+                            console.log(results.rows);
+                            req.flash("success_msg", "You are now registered. Please log in");
+                            res.redirect("/");
+                        }
+                    );
+                }
             }
-            console.log(results.rows);
-        }
-    );
-
-
-    res.send("Received");
+        );
+    }
 });
-   
+
+app.post("/", passport.authenticate("local", { //authenticate user through our database 
+    successRedirect: "/users/dashboard",
+    failureRedirect: "/",
+    failureFlash: true  //failure message
+}));
+
+function checkAuthenticated(req, res, next){
+    if(req.isAuthenticated()){
+        return res.redirect("/users/dashboard");
+    }
+    next();
+}
+
+function checkNotAuthenticated(req, res, next){
+    if(req.isAuthenticated()){
+        return next();
+    }
+    res.redirect("/");
+}
 
 app.listen(port, () => {
     console.log(`Server running on port ${port}`);
@@ -103,3 +187,4 @@ function containsSpecialCharacter(str) {
     // Check if the string contains any special character
     return specialCharRegex.test(str);
 }
+

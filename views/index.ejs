@@ -67,9 +67,22 @@
 <body>
     <div class="login-container">
         <h2>Login</h2>
-        <form action="/users/index" method="POST">
+
+        <ul>
+            <% if(messages.success_msg) { %>
+                <li><%= messages.success_msg %></li>
+          <% } %>
+        </ul>
+
+        <ul>
+            <% if(messages.error) { %>
+                <li><%= messages.error %></li>
+          <% } %>
+        </ul>
+
+        <form action="/" method="POST">
               <!-- Text input for username -->
-              <input type="text" id="username" name="username" placeholder="username">
+              <input type="text" id="email" name="email" placeholder="email">
 
               <!-- Password input -->
               <input type="password" id="password" name="password" placeholder="password" required>
