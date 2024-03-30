@@ -1,0 +1,112 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Password Manager Dashboard</title>
+    <!-- <style>
+        table {
+            width: 100%;
+            border-collapse: collapse;
+        }
+        th, td {
+            padding: 8px;
+            border-bottom: 1px solid #ddd;
+        }
+        th {
+            background-color: #f2f2f2;
+        }
+        .password-masked {
+            font-family: monospace;
+            letter-spacing: 2px;
+        }
+        
+        .popup {
+    display: none;
+    position: fixed;
+    z-index: 1;
+    left: 0;
+    top: 0;
+    width: 100%;
+    height: 100%;
+    overflow: auto;
+    background-color: rgba(0,0,0,0.4);
+}
+
+.popup-content {
+    background-color: #fefefe;
+    margin: 15% auto;
+    padding: 20px;
+    border: 1px solid #888;
+    width: 80%;
+}
+
+.close {
+    color: #aaa;
+    float: right;
+    font-size: 28px;
+    font-weight: bold;
+}
+
+.close:hover,
+.close:focus {
+    color: black;
+    text-decoration: none;
+    cursor: pointer;
+}
+
+    </style> -->
+    <link rel="stylesheet" type="text/css" href="/style.css"> 
+</head>
+<body>
+
+<h2>Password Manager Dashboard</h2>
+
+<div class="button-container">
+    <button onclick="openLoginPopup()">Add Account</button>
+</div>
+
+<div id="loginPopup" class="popup">
+    <div class="popup-content">
+        <span class="close" onclick="closeLoginPopup()">&times;</span>
+        <h2>Add Account</h2>
+        <form action="/users/dashboardcopy" method="POST">
+            <label for="account">Username:</label>
+            <input type="text" id="account" name="account" required>
+            <label for="username">Username:</label>
+            <input type="text" id="username" name="username" required>
+            <label for="password">Password:</label>
+            <input type="password" id="passw" name="pass" required>
+            <button type="submit">Add</button>
+        </form>
+    </div>
+</div>
+
+<table>
+    <thead>
+        <tr>
+            <th>Account</th>
+            <th>Username</th>
+            <th>Password</th>
+            <!-- Add more columns as needed -->
+        </tr>
+    </thead>
+    <tbody>
+        <% items.forEach(item => { %>
+            <tr>
+                <td><%= item.name %></td>
+                <td><%= item.username %></td>
+                <td class="password-cell">
+                    <span class="password-masked"><%= item.masked_password %></span>
+                    <span class="password-shown"><%= item.password %></span>
+                    <button onclick="togglePasswordVisibility(this)"><img src="/eye_open.svg" alt="Show Password"></button>
+                </td>
+                
+                <!-- Add more columns as needed -->
+            </tr>
+        <% }); %>
+    </tbody>
+</table>
+<script src="/dashboard.js"></script>
+</body>
+</html>

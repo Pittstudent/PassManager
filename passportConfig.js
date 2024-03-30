@@ -22,8 +22,15 @@ function initialize (passport) {
 
                 if(results.rows.length > 0){
                     const user = results.rows[0];
-                    console.log("Credentials" + password + " " + user.salt + " " + user.password)
-                    const child = exec(`python3 ./passcheck.py "${password}" "${user.salt}" "${user.password}"`, (error, stdout, stderr) => {
+                    console.log("Credentials: " );
+                    console.log({passport_config_credentials: {
+                        email: email,
+                        password: password,
+                        salt: user.salt,
+                        hashedPassword: user.password,
+                        user_password_length: user.password.length,
+                    }});
+                    const child = exec(`python3 ./crypter.py 'login' '${password}' '${user.salt}' '${user.password}'`, (error, stdout, stderr) => {
                         if (error) {
                             console.error(`Error executing Python script: ${error}`);
                             res.status(500).send('Error executing Python script');

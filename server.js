@@ -22,7 +22,7 @@ app.set('view engine', 'html');
 
 app.use(express.json()); // for parsing application/json
 app.use(express.urlencoded({ extended: true })); // for parsing application/x-www-form-urlencoded
-// app.use(express.static('public')); // Serve static files from the 'public' directory
+app.use(express.static('public')); // Serve static files from the 'public' directory
 
 app.use(session({
     secret: "secret",
@@ -51,7 +51,6 @@ app.get("/", checkAuthenticated, (req, res) => {
 app.get("/users/dashboard", checkNotAuthenticated, (req, res) => {
     res.render("dashboard.ejs", {user: req.user.name});});
 
-
 app.get("/users/create_account", (req, res) => {
     res.render("create_account.ejs");});
 
@@ -60,6 +59,19 @@ app.get("/users/login", (req, res) => {
 
 app.get("/users/dashboard", (req, res) => {
     res.render("dashboard.ejs", {user: req.user.name});});
+
+app.get("/users/dashboardcopy", (req, res) => {
+    pool.query("SELECT name, username, password, REPLACE(password, SUBSTRING(password, 2), REPEAT('*', CHAR_LENGTH(password) - 1)) AS masked_password FROM vault", (err, results) => {
+        if (err) {
+            console.error(err);
+            res.status(500).send("Error fetching items from database");
+            return;
+        }
+        res.render("dashboardcopy.ejs", { items: results.rows });
+    });
+});
+    
+    
 
 app.get("/users/logout", (req, res) => {
     req.logout(req.user, err => {
@@ -112,10 +124,13 @@ app.post('/users/create_account', async (req, res) => {
     }
     else{
         // Remove the duplicate declaration of 'salt'
-        let salt = bcrypt.genSaltSync(10); //generate salt
+        let salt = bcrypt.genSaltSync(20); //generate salt
+        // if(salt.charAt(0) === '$'){
+        //     salt = generateRandomLetter() + salt.slice(1);
+        // }
         let hashedPassword = ''
 
-        const child = exec(`python3 ./crypter.py ${password} ${salt}`, (error, stdout, stderr) => { //send pass to python to encrypt
+        const child = exec(`python3 ./crypter.py 'register' ${password} ${salt} ''`, (error, stdout, stderr) => { //send pass to python to encrypt
             if (error) {
                 console.error(`Error executing Python script: ${error}`);
                 return;
@@ -140,6 +155,7 @@ app.post('/users/create_account', async (req, res) => {
                         res.render("create_account.ejs", {errors});
                     }
                     else{
+                        console.log({register_user: {name:name, email:email, password:hashedPassword, salt:salt}})
                         pool.query(
                             `INSERT INTO users (name, email, password, salt)
                             VALUES ($1, $2, $3, $4)
@@ -177,6 +193,52 @@ app.post("/", passport.authenticate("local", { //authenticate user through our d
     failureFlash: true  //failure message
 }));
 
+app.post('/users/dashboardcopy', async (req, res) => {
+    let{account,username,pass} = req.body;
+    console.log({
+        account, username, pass
+    });
+
+    let errors = [];
+
+    if(!account || !username || !pass){
+        errors.push({message: "Please enter all fields"});
+    }
+    else{
+            // Remove the duplicate declaration of 'salt
+            pool.query(
+                `SELECT * FROM vault`, 
+                (err) => {
+                    if (err) {
+                        console.log(err);
+                        res.sendStatus(500);
+                        return;
+                    }
+                    else{
+                        console.log({register_user: {account:account, username:username, password:pass, }})
+                        pool.query(
+                            `INSERT INTO vault (name, username, password)
+                            VALUES ($1, $2, $3)
+                            RETURNING user_id, name, username, password`, 
+                            [account, username, pass], 
+                            (err, results) => {
+                                if (err) {
+                                    console.log(err);
+                                    res.sendStatus(500);
+                                    return;
+                                }
+                                console.log(results.rows);
+                                req.flash("success_msg", "Succesful");
+                                res.redirect("/users/dashboardcopy");
+                            }
+                        );
+                    }
+                }
+            );
+    }
+});
+
+
 function checkAuthenticated(req, res, next){
     if(req.isAuthenticated()){
         return res.redirect("/users/dashboard");
@@ -206,4 +268,20 @@ function containsSpecialCharacter(str) {
     // Check if the string contains any special character
     return specialCharRegex.test(str);
 }
+
+function generateRandomLetter() {
+    // Generate a random number between 0 and 25
+    const randomNumber = Math.floor(Math.random() * 26);
+
+    // Convert the random number to a letter in the alphabet
+    const randomLetter = String.fromCharCode(65 + randomNumber); // Uppercase letter
+
+    return randomLetter;
+}
+
+
+// Example usage:
+
+
+
 
