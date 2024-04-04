@@ -59,11 +59,11 @@
     <link rel="stylesheet" type="text/css" href="/style.css"> 
 </head>
 <body>
-
+<div>
 <h2>Password Manager Dashboard</h2>
 
-<div class="button-container">
-    <button onclick="openLoginPopup()">Add Account</button>
+<div class="button-pos">
+<button class="button-container" onclick="openLoginPopup()">Add Account</button>
 </div>
 
 <div id="loginPopup" class="popup">
@@ -81,7 +81,7 @@
         </form>
     </div>
 </div>
-
+</div>
 <table>
     <thead>
         <tr>
@@ -99,7 +99,7 @@
                 <td class="password-cell">
                     <span class="password-masked"><%= item.masked_password %></span>
                     <span class="password-shown"><%= item.password %></span>
-                    <button onclick="togglePasswordVisibility(this)"><img src="/eye_open.svg" alt="Show Password"></button>
+                    <button onclick="togglePasswordVisibility(this)"><img class="icon" src="/eye_open.svg" alt="Show Password"></button>
                 </td>
                 
                 <!-- Add more columns as needed -->
@@ -107,6 +107,13 @@
         <% }); %>
     </tbody>
 </table>
+<br>
+<div class="button-pos">
+<form action="/users/logout" method="POST">
+    <button class="button-container" submit">Logout</button>
+</form>
+</div>
+
 <script src="/dashboard.js"></script>
 </body>
 </html>

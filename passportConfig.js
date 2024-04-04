@@ -38,10 +38,9 @@ function initialize (passport) {
                         }
                 
                         // Handle output from Python script
-                        const match = 0;
-                        const answ = stdout.trim() // Assuming Python script outputs 'true' if passwords match
-                        console.log(`Python script output: ${answ}`);
-                        if(match){
+                        let match = stdout.trim() // Assuming Python script outputs 'true' if passwords match
+                        console.log(`Python script output: ${match}`);
+                        if(match == 1){
                             console.log("Password matched");
                             return done(null, user);
                         } else {

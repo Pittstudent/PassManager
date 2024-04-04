@@ -7,12 +7,24 @@ const flash = require("express-flash");
 const passport = require("passport");
 const { exec } = require('child_process');
 
+const nodemailer = require('nodemailer');
+const transporter = nodemailer.createTransport({
+    host: 'smtp.gmail.com',
+    port: 465,
+    secure: true, // Set to true if using TLS
+    auth: {
+        user: 'rtgamwo@gmail.com',
+        pass: 'pqda mezc iwer rrrq '
+    }
+});
+
 console.log("Live!")
 
 const {pool} = require("./dbConfig");
 
 
 const initializePassport = require("./passportConfig");
+const { type } = require('os');
 initializePassport(passport);
 
 const port = process.env.PORT || 4000; // Default port
@@ -61,19 +73,91 @@ app.get("/users/dashboard", (req, res) => {
     res.render("dashboard.ejs", {user: req.user.name});});
 
 app.get("/users/dashboardcopy", (req, res) => {
-    pool.query("SELECT name, username, password, REPLACE(password, SUBSTRING(password, 2), REPEAT('*', CHAR_LENGTH(password) - 1)) AS masked_password FROM vault", (err, results) => {
+    pool.query("SELECT * FROM vault", (err, results) => {
         if (err) {
             console.error(err);
             res.status(500).send("Error fetching items from database");
             return;
         }
-        res.render("dashboardcopy.ejs", { items: results.rows });
+        // console.log({vault_data: results.rows})
+         var vault_data = [];
+        
+
+        for(let item of results.rows){
+            let plain_pass = '';
+            console.log({item: item.password})
+            console.log("Pass length is: " + item.password.length)
+            const child = exec(`python3 ./aescrypter.py 'decrypt' "${item.password}" "${item.key}" "${item.iv}"`, (error, stdout, stderr) => { //send pass to python to encrypt
+                if (error) {
+                    console.log(`Python script output:s ${stdout}`);
+                    console.error(`Error executing Python script: ${error}`);
+                    return;
+                }
+                console.log(`Python script output:s ${stdout}`);
+                plain_pass = stdout;  
+            }  ) 
+
+            item = {...item, plain_password: plain_pass};
+            vault_data.push(item);
+        }   
+        console.log({decrypt_vault_data: vault_data})
+        res.render("dashboardcopy.ejs", { items: vault_data.map(item => ({...item,masked_password: '•'.repeat(item.password.length)}) ) });
     });
 });
+
+
+app.get("/:id/email2FA", (req, res) => {
+    
+    console.log("Email 2FA page")
+    id = req.params.id;
+    const sendOTPVerificationEmail = async (id, res) => {
+        try {
+            // Query email based on user ID
+            const { rows } = await pool.query('SELECT email FROM users WHERE id = $1', [id]);
+            const user_email = rows[0].email;
+            console.log({user_email: user_email});
+    
+            // Generate OTP
+            const otp = `${Math.floor(100000 + Math.random() * 900000)}`;
+            req.session.otp = otp;
+            req.session.email = user_email;
+            // const saltRounds = 10;
+            // const hashedOTP = await bcrypt.hash(otp, saltRounds);
+    
+            // Prepare mail options
+            const mailOptions = {
+                from: 'drickbeats@gmail.com',
+                to: user_email,
+                subject: 'OTP Verification',
+                text: `Your OTP is: ${otp}`
+            };
+            
+            // Send email
+            transporter.sendMail(mailOptions, (error, info) => {
+                if (error) {
+                    console.error('Error sending email:', error);
+                } else {
+                    console.log('Email sent:', info.response);
+                }
+            });
+            res.render("email2FA.ejs");
+            
+            // Send response
+        } catch (error) {
+            res.json({
+                status: "FAILED",
+                message: "Failed to send verification otp email",
+                error: error.message
+            });
+        }
+        
+    }
+    sendOTPVerificationEmail(id, res);
+    });
     
     
 
-app.get("/users/logout", (req, res) => {
+app.post("/users/logout", (req, res) => {
     req.logout(req.user, err => {
         if(err) return next(err);
         req.flash("success_msg", "You have been logged out");
@@ -129,6 +213,7 @@ app.post('/users/create_account', async (req, res) => {
         //     salt = generateRandomLetter() + salt.slice(1);
         // }
         let hashedPassword = ''
+        
 
         const child = exec(`python3 ./crypter.py 'register' ${password} ${salt} ''`, (error, stdout, stderr) => { //send pass to python to encrypt
             if (error) {
@@ -187,11 +272,64 @@ app.post('/users/create_account', async (req, res) => {
     }
 });
 
-app.post("/", passport.authenticate("local", { //authenticate user through our database 
-    successRedirect: "/users/dashboard",
-    failureRedirect: "/",
-    failureFlash: true  //failure message
-}));
+
+
+app.post("/", (req, res, next) => {
+    passport.authenticate("local", (err, user, info) => {
+        if (err) { return next(err); }
+        if (!user) { 
+            // Authentication failed, redirect to failureRedirect
+            return res.redirect("/?loginFailed=true");
+        }
+        
+        // Successful authentication, query vault table to find user ID by email
+        pool.query('SELECT id FROM users WHERE email = $1', [req.body.email], (err, result) => {
+            if (err) { 
+                return next(err); 
+            }
+            
+            if (result.rows.length === 0) {
+                // User not found in vault table, handle accordingly
+                return res.redirect("/?userNotFound=true");
+            }
+            
+            // Found user in vault table, redirect to successRedirect with user ID
+            res.redirect(`/${result.rows[0].id}/email2FA`);
+        });
+    })(req, res, next);
+});
+
+// function resendOTP(){
+//     try {
+//     const email = req.session.email;
+//     const mailOptions = {
+//         from: 'drickbeats@gmail.com',
+//         to: user_email,
+//         subject: 'OTP Verification',
+//         text: `Your OTP is: ${otp}`
+//     };
+    
+//     // Send email
+//     transporter.sendMail(mailOptions, (error, info) => {
+//         if (error) {
+//             console.error('Error sending email:', error);
+//         } else {
+//             console.log('Email sent:', info.response);
+//         }
+//     });
+//     res.render("email2FA.ejs");
+    
+//     // Send response
+// } catch (error) {
+//     res.json({
+//         status: "FAILED",
+//         message: "Failed to send verification otp email",
+//         error: error.message
+//     });
+// }
+
+// }
+
 
 app.post('/users/dashboardcopy', async (req, res) => {
     let{account,username,pass} = req.body;
@@ -205,22 +343,41 @@ app.post('/users/dashboardcopy', async (req, res) => {
         errors.push({message: "Please enter all fields"});
     }
     else{
-            // Remove the duplicate declaration of 'salt
+        let hashed_pass = '';
+        const child = exec(`python3 ./aescrypter.py 'encrypt' ${pass}''`, (error, stdout, stderr) => { //send pass to python to encrypt
+            if (error) {
+                console.error(`Error executing Python script: ${error}`);
+                return;
+            }
+            console.log(`Python script output: ${stdout}`);
+            process.stdout.write("Your output message");
+            const outputUint8Array = new TextEncoder().encode(stdout);
+            const hash_pass = outputUint8Array.slice(0, 32);
+            const key_bytes = outputUint8Array.slice(32, 64);
+            const IV_bytes = outputUint8Array.slice(64, 80);
+        
+            // Now you can use hash_pass, key_bytes, and IV_bytes as needed
+            console.log("Hashed Password:", hash_pass.toString('hex'));
+            console.log("Key Bytes:", key_bytes.toString('hex'));
+            console.log("IV Bytes:", IV_bytes.toString('hex'));
+
+            // Remove the duplicate declaration of 'salt' 
             pool.query(
                 `SELECT * FROM vault`, 
                 (err) => {
                     if (err) {
                         console.log(err);
                         res.sendStatus(500);
+
                         return;
                     }
                     else{
-                        console.log({register_user: {account:account, username:username, password:pass, }})
+                        console.log({register_user: {account:account, username:username, password:hashed_pass, }})
                         pool.query(
-                            `INSERT INTO vault (name, username, password)
-                            VALUES ($1, $2, $3)
+                            `INSERT INTO vault (name, username, password, key, iv)
+                            VALUES ($1, $2, $3, $4, $5)
                             RETURNING user_id, name, username, password`, 
-                            [account, username, pass], 
+                            [account, username, hash_pass, key_bytes, IV_bytes], 
                             (err, results) => {
                                 if (err) {
                                     console.log(err);
@@ -235,6 +392,22 @@ app.post('/users/dashboardcopy', async (req, res) => {
                     }
                 }
             );
+        });
+    }
+    
+});
+
+app.post('/users/2FAcode', async (req, res) => {
+    const otpCheck = req.session.otp;
+    let intOtp1 = parseInt(otpCheck);
+    let intOtp2 = parseInt(req.body['2fa']);
+    let errors = [];
+    if(intOtp1 === intOtp2){
+        res.redirect("/users/dashboardcopy");
+    }
+    else{
+        errors.push({message: "Invalid OTP"});
+        res.render("email2FA.ejs", {errors});
     }
 });
 

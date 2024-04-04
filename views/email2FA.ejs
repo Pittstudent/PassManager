@@ -1,0 +1,50 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Login Page</title>
+    <link rel="stylesheet" type="text/css" href="/style.css"> 
+</head>
+<body>
+    <div class="login-container">
+        <h2>2FA</h2>
+
+        <ul>
+            <% if (typeof errors != 'undefined') { %> <% errors.forEach(error => { %>
+            <li><%= error.message %></li>
+            <% }) %> <% } %>
+          </ul>
+
+        <form action="/users/2FAcode" method="POST">
+            <input type="text" id="2fa" name="2fa" placeholder="OTP">
+            <br>
+            <input class="btn" type="submit" value="Submit">
+            <!-- <button class="btn" id="email2FAButton" onclick="resendOTP()">Resend OTP</button> -->
+        </form>
+
+    </div>
+    <!-- <script>
+        // Function to handle the button click event
+        function resendOTP() {
+            fetch('/47/email2FA', { // Update this with the actual route
+                method: 'GET'
+            })
+            .then(response => {
+                if (response.ok) {
+                    console.log('Email sent successfully');
+                    // Optionally, you can handle the response here
+                } else {
+                    console.error('Failed to send email:', response.statusText);
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+            });
+        }
+
+        // Attach event listener to the button
+        document.getElementById('email2FAButton').addEventListener('click', resendOTP);
+    </script> -->
+</body>
+</html>
