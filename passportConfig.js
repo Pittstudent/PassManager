@@ -14,8 +14,7 @@ function initialize (passport) {
             (err, results) => {
                 if(err){
                     console.log(err);
-                    res.sendStatus(500);
-                    return;
+                    return done(null, false, {message: "Database error"});
                 }
 
                 console.log(results.rows);
