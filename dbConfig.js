@@ -8,7 +8,34 @@ const connectionString = `postgresql://${process.env.DB_USER}:${process.env.DB_P
 
 const pool = new Pool({
         connectionString: isProduction ? process.env.DATABASE_URL : connectionString,
-        ssl: isProduction
+        ssl: {
+                rejectUnauthorized: false
+                
+        }
 });
+
+pool.query( 
+        
+        `
+        CREATE TABLE IF NOT EXISTS users (
+                id BIGSERIAL PRIMARY KEY NOT NULL, 
+                name VARCHAR(200) NOT NULL, 
+                email VARCHAR(200) NOT NULL,
+                salt VARCHAR(200) NOT NULL,
+                password VARCHAR(200) NOT NULL, 
+                UNIQUE (email)
+                );
+                
+        CREATE TABLE IF NOT EXISTS vault (
+                id BIGSERIAL PRIMARY KEY NOT NULL, 
+                name VARCHAR(200) NOT NULL, 
+                username VARCHAR(200) NOT NULL,
+                password VARCHAR(200) NOT NULL,
+                key VARCHAR(200) NOT NULL
+                );`
+)
+
+
+
 
 module.exports = { pool }; // Export the pool object
