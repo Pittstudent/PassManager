@@ -6,6 +6,7 @@ const session = require("express-session");
 const flash = require("express-flash");
 const passport = require("passport");
 const { exec } = require('child_process');
+const { spawn } = require('child_process');
 
 const nodemailer = require('nodemailer');
 const transporter = nodemailer.createTransport({
@@ -87,15 +88,26 @@ app.get("/users/dashboardcopy", (req, res) => {
             let plain_pass = '';
             console.log({item: item.password})
             console.log("Pass length is: " + item.password.length)
-            const child = exec(`python3 ./aescrypter.py 'decrypt' "${item.password}" "${item.key}" "${item.iv}"`, (error, stdout, stderr) => { //send pass to python to encrypt
-                if (error) {
-                    console.log(`Python script output:s ${stdout}`);
-                    console.error(`Error executing Python script: ${error}`);
-                    return;
-                }
-                console.log(`Python script output:s ${stdout}`);
-                plain_pass = stdout;  
-            }  ) 
+            const args = ['decrypt', item.password, item.key, item.iv];
+
+// Spawn the Python script process
+        const pythonProcess = spawn('python3', ['./aescrypter.py', ...args]);
+
+        // Handle stdout data
+        pythonProcess.stdout.on('data', (data) => {
+            console.log(`Python script output: ${data}`);
+            // You can manipulate the output here as needed
+        });
+
+        // Handle stderr data
+        pythonProcess.stderr.on('data', (data) => {
+            console.error(`Error executing Python script: ${data}`);
+        });
+
+        // Handle process exit
+        pythonProcess.on('close', (code) => {
+            console.log(`Python script process exited with code ${code}`);
+        });
 
             item = {...item, plain_password: plain_pass};
             vault_data.push(item);
@@ -353,13 +365,13 @@ app.post('/users/dashboardcopy', async (req, res) => {
             process.stdout.write("Your output message");
             const outputUint8Array = new TextEncoder().encode(stdout);
             const hash_pass = outputUint8Array.slice(0, 32);
-            const key_bytes = outputUint8Array.slice(32, 64);
-            const IV_bytes = outputUint8Array.slice(64, 80);
+            const key_bytes = outputUint8Array.slice(32, 98);
+            const IV_bytes = outputUint8Array.slice(98, 130);
         
             // Now you can use hash_pass, key_bytes, and IV_bytes as needed
-            console.log("Hashed Password:", hash_pass.toString('hex'));
-            console.log("Key Bytes:", key_bytes.toString('hex'));
-            console.log("IV Bytes:", IV_bytes.toString('hex'));
+            console.log("Hashed Password:", hash_pass.toString());
+            console.log("Key Bytes:", key_bytes.toString());
+            console.log("IV Bytes:", IV_bytes.toString());
 
             // Remove the duplicate declaration of 'salt' 
             pool.query(
@@ -376,7 +388,7 @@ app.post('/users/dashboardcopy', async (req, res) => {
                         pool.query(
                             `INSERT INTO vault (name, username, password, key, iv)
                             VALUES ($1, $2, $3, $4, $5)
-                            RETURNING user_id, name, username, password`, 
+                            RETURNING id, name, username, password`, 
                             [account, username, hash_pass, key_bytes, IV_bytes], 
                             (err, results) => {
                                 if (err) {
