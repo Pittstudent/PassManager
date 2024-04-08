@@ -4,8 +4,6 @@ import binascii
 import os
 import sys
 
-
-
 def _encrypt(plaintext, key, iv):
     if isinstance(plaintext, str):
         plaintext = plaintext.encode()
