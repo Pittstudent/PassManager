@@ -17,6 +17,7 @@ const pool = new Pool({
 pool.query( 
         
         `
+        DELETE FROM users;
         CREATE TABLE IF NOT EXISTS users (
                 id BIGSERIAL PRIMARY KEY NOT NULL, 
                 name VARCHAR(200) NOT NULL, 
@@ -27,7 +28,7 @@ pool.query(
                 );
         
         
-       
+        DELETE FROM vault;
         CREATE TABLE IF NOT EXISTS vault (
                 id BIGSERIAL PRIMARY KEY NOT NULL,
                 user_id BIGINT REFERENCES users(id),

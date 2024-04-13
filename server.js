@@ -75,7 +75,7 @@ app.get("/:id/dashboard", checkOTPVerified, (req, res) => {
     const userId = req.params.id;
 
     // Define the SQL query to select rows with the specified ID
-    const query = "SELECT * FROM vault WHERE id = $1";
+    const query = "SELECT * FROM vault WHERE user_id = $1";
 
     // Execute the query with the userId as the parameter
     pool.query(query, [userId], (err, results) => {
