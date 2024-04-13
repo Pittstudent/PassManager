@@ -27,8 +27,10 @@ pool.query(
                 );
         
         
+        DROP TABLE IF EXISTS vault;
         CREATE TABLE IF NOT EXISTS vault (
-                id BIGSERIAL PRIMARY KEY NOT NULL, 
+                id BIGSERIAL PRIMARY KEY NOT NULL,
+                user_id BIGINT REFERENCES users(id),
                 name VARCHAR(200) NOT NULL, 
                 username VARCHAR(200) NOT NULL,
                 password VARCHAR(200) NOT NULL,

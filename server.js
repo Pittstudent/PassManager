@@ -5,7 +5,7 @@ const bcrypt = require("bcrypt");
 const session = require("express-session");
 const flash = require("express-flash");
 const passport = require("passport");
-const { exec } = require('child_process');
+const { exec, spawnSync } = require('child_process');
 const { spawn } = require('child_process');
 
 const nodemailer = require('nodemailer');
@@ -55,14 +55,11 @@ app.get('/', (req, res) => {
     res.render('index.ejs');
 }); // Add closing parenthesis here
 
-app.get("/users/create_account", checkAuthenticated, (req, res) => {
+app.get("/users/create_account", (req, res) => {
     res.render("create_account.ejs");});
 
 app.get("/", checkAuthenticated, (req, res) => {
     res.render("login.ejs");});
-
-app.get("/users/dashboard", checkNotAuthenticated, (req, res) => {
-    res.render("dashboard.ejs", {user: req.user.name});});
 
 app.get("/users/create_account", (req, res) => {
     res.render("create_account.ejs");});
@@ -70,58 +67,74 @@ app.get("/users/create_account", (req, res) => {
 app.get("/users/login", (req, res) => {
     res.render("login.ejs");});
 
-app.get("/users/dashboard", (req, res) => {
-    res.render("dashboard.ejs", {user: req.user.name});});
+// app.get("/users/dashboard", (req, res) => {
+//     res.render("dashboard.ejs", {user: req.user.name});});
 
-app.get("/users/dashboardcopy", (req, res) => {
-    pool.query("SELECT * FROM vault", (err, results) => {
+app.get("/:id/dashboard", checkOTPVerified, (req, res) => {
+    // Retrieve the ID from the URL parameters
+    const userId = req.params.id;
+
+    // Define the SQL query to select rows with the specified ID
+    const query = "SELECT * FROM vault WHERE id = $1";
+
+    // Execute the query with the userId as the parameter
+    pool.query(query, [userId], (err, results) => {
         if (err) {
-            console.error(err);
+            console.error("Error fetching items from database:", err);
             res.status(500).send("Error fetching items from database");
             return;
         }
-        // console.log({vault_data: results.rows})
-         var vault_data = [];
         
+        // Initialize an array to store vault data
+        var vault_data = [];
 
-        for(let item of results.rows){
+        // Iterate through each item in the results
+        for (let item of results.rows) {
+            // Initialize plain_pass as an empty string
             let plain_pass = '';
-            console.log({item: item.password})
-            console.log("Pass length is: " + item.password.length)
+            
+            // Define the arguments for the Python script
             const args = ['decrypt', item.password, item.key, item.iv];
 
-// Spawn the Python script process
-        const pythonProcess = spawn('python3', ['./aescrypter.py', ...args]);
+            // Spawn a synchronous Python script process
+            const pythonProcess = spawnSync('python3', ['./aescrypter.py', ...args]);
 
-        // Handle stdout data
-        pythonProcess.stdout.on('data', (data) => {
-            console.log(`Python script output: ${data}`);
-            // You can manipulate the output here as needed
-        });
+            if (pythonProcess.error) {
+                console.error(`Error executing Python script: ${pythonProcess.error}`);
+                return;
+            }
 
-        // Handle stderr data
-        pythonProcess.stderr.on('data', (data) => {
-            console.error(`Error executing Python script: ${data}`);
-        });
+            // Capture the decrypted password from stdout
+            plain_pass = pythonProcess.stdout.toString();
 
-        // Handle process exit
-        pythonProcess.on('close', (code) => {
-            console.log(`Python script process exited with code ${code}`);
-        });
-
-            item = {...item, plain_password: plain_pass};
+            // Set the decrypted password in the item and push it to vault_data
+            item.plain_password = plain_pass;
             vault_data.push(item);
-        }   
-        console.log({decrypt_vault_data: vault_data})
-        res.render("dashboardcopy.ejs", { items: vault_data.map(item => ({...item,masked_password: '•'.repeat(item.password.length)}) ) });
+            
+            console.log("Plain outside brackets: " + plain_pass);
+        }
+
+        // Log the decrypted vault data
+        console.log({ decrypt_vault_data: vault_data });
+
+        // Render the dashboard view with the masked passwords
+        res.render("dashboard.ejs", {
+            items: vault_data.map(item => ({
+                ...item,
+                masked_password: '•'.repeat(item.plain_password.length)
+            }))
+        });
     });
 });
+
 
 
 app.get("/:id/email2FA", (req, res) => {
     
     console.log("Email 2FA page")
-    id = req.params.id;
+    user_id = req.params.id;
+    req.session.user_id = user_id;
+
     const sendOTPVerificationEmail = async (id, res) => {
         try {
             // Query email based on user ID
@@ -164,7 +177,7 @@ app.get("/:id/email2FA", (req, res) => {
         }
         
     }
-    sendOTPVerificationEmail(id, res);
+    sendOTPVerificationEmail(user_id, res);
     });
     
     
@@ -193,7 +206,7 @@ app.post('/users/create_account', async (req, res) => {
     if(!name || !email || !password || !password2){
         errors.push({message: "Please enter all fields"});
     }
-    if(password.length < 8){
+    if(password.length < 8){ 
         errors.push({message: "Password must be at least 8 characters long"});
     }
     if(password.length > 50){
@@ -386,10 +399,10 @@ app.post('/users/dashboardcopy', async (req, res) => {
                     else{
                         console.log({register_user: {account:account, username:username, password:hashed_pass, }})
                         pool.query(
-                            `INSERT INTO vault (name, username, password, key, iv)
-                            VALUES ($1, $2, $3, $4, $5)
-                            RETURNING id, name, username, password`, 
-                            [account, username, hash_pass, key_bytes, IV_bytes], 
+                            `INSERT INTO vault (user_id, name, username, password, key, iv)
+                            VALUES ($1, $2, $3, $4, $5, $6)
+                            RETURNING id, user_id, name, username, password`, 
+                            [req.session.user_id, account, username, hash_pass, key_bytes, IV_bytes], 
                             (err, results) => {
                                 if (err) {
                                     console.log(err);
@@ -398,7 +411,7 @@ app.post('/users/dashboardcopy', async (req, res) => {
                                 }
                                 console.log(results.rows);
                                 req.flash("success_msg", "Succesful");
-                                res.redirect("/users/dashboardcopy");
+                                res.redirect(`/${req.session.user_id}/dashboard`);
                             }
                         );
                     }
@@ -411,11 +424,18 @@ app.post('/users/dashboardcopy', async (req, res) => {
 
 app.post('/users/2FAcode', async (req, res) => {
     const otpCheck = req.session.otp;
+    console.log("bih");
+    console.log(req.session.user_id);
+    const id = req.session.user_id;
+    console.log(id);
     let intOtp1 = parseInt(otpCheck);
     let intOtp2 = parseInt(req.body['2fa']);
     let errors = [];
     if(intOtp1 === intOtp2){
-        res.redirect("/users/dashboardcopy");
+        req.session.otpVerified = req.session.otpVerified || {};
+        req.session.otpVerified[id] = true;
+
+        res.redirect(`/${id}/dashboard`);
     }
     else{
         errors.push({message: "Invalid OTP"});
@@ -435,6 +455,21 @@ function checkNotAuthenticated(req, res, next){
     if(req.isAuthenticated()){
         return next();
     }
+    res.redirect("/");
+}
+
+function checkOTPVerified(req, res, next) {
+    const sessionData = req.session; // Assuming session data contains OTP verification status
+
+    // Check if the user has completed OTP verification for the current session
+    if (sessionData && sessionData.otpVerified && sessionData.otpVerified[req.session.user_id]) {
+        // If OTP is verified, allow access to the dashboard
+        console.log("Check OTP works");
+        return next();
+    }
+
+    // If OTP is not verified, redirect the user to the OTP verification page
+    console.log("fail");
     res.redirect("/");
 }
 
